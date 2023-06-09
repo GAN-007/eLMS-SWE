@@ -1,21 +1,18 @@
 from django.db import models
 from froala_editor.fields import FroalaField
-# Create your models here.
+from django.contrib.auth.models import AbstractUser
 
+# Create your models here.
 
 class Student(models.Model):
     student_id = models.IntegerField(primary_key=True)
     name = models.CharField(max_length=100, null=False)
     email = models.EmailField(max_length=100, null=True, blank=True)
     password = models.CharField(max_length=255, null=False)
-    role = models.CharField(
-        default="Student", max_length=100, null=False, blank=True)
-    course = models.ManyToManyField(
-        'Course', related_name='students', blank=True)
-    photo = models.ImageField(upload_to='profile_pics', blank=True,
-                              null=False, default='profile_pics/default_student.png')
-    department = models.ForeignKey(
-        'Department', on_delete=models.CASCADE, null=False, blank=False, related_name='students')
+    role = models.CharField(default="Student", max_length=100, null=False, blank=True)
+    course = models.ManyToManyField('Course', related_name='students', blank=True)
+    photo = models.ImageField(upload_to='profile_pics', blank=True, null=False, default='profile_pics/default_student.png')
+    department = models.ForeignKey('Department', on_delete=models.CASCADE, null=False, blank=False, related_name='students')
 
     def delete(self, *args, **kwargs):
         if self.photo != 'profile_pics/default_student.png':
@@ -28,18 +25,14 @@ class Student(models.Model):
     def __str__(self):
         return self.name
 
-
 class Faculty(models.Model):
     faculty_id = models.IntegerField(primary_key=True)
     name = models.CharField(max_length=100, null=False)
     email = models.EmailField(max_length=100, null=True, blank=True)
     password = models.CharField(max_length=255, null=False)
-    department = models.ForeignKey(
-        'Department', on_delete=models.CASCADE, null=False, related_name='faculty')
-    role = models.CharField(
-        default="Faculty", max_length=100, null=False, blank=True)
-    photo = models.ImageField(upload_to='profile_pics', blank=True,
-                              null=False, default='profile_pics/default_faculty.png')
+    department = models.ForeignKey('Department', on_delete=models.CASCADE, null=False, related_name='faculty')
+    role = models.CharField(default="Faculty", max_length=100, null=False, blank=True)
+    photo = models.ImageField(upload_to='profile_pics', blank=True, null=False, default='profile_pics/default_faculty.png')
 
     def delete(self, *args, **kwargs):
         if self.photo != 'profile_pics/default_faculty.png':
@@ -51,7 +44,6 @@ class Faculty(models.Model):
 
     def __str__(self):
         return self.name
-
 
 class Department(models.Model):
     department_id = models.IntegerField(primary_key=True)
@@ -73,14 +65,11 @@ class Department(models.Model):
     def course_count(self):
         return self.courses.count()
 
-
 class Course(models.Model):
     code = models.IntegerField(primary_key=True)
     name = models.CharField(max_length=255, null=False, unique=True)
-    department = models.ForeignKey(
-        Department, on_delete=models.CASCADE, null=False, related_name='courses')
-    faculty = models.ForeignKey(
-        Faculty, on_delete=models.SET_NULL, null=True, blank=True)
+    department = models.ForeignKey(Department, on_delete=models.CASCADE, null=False, related_name='courses')
+    faculty = models.ForeignKey(Faculty, on_delete=models.SET_NULL, null=True, blank=True)
     studentKey = models.IntegerField(null=False, unique=True)
     facultyKey = models.IntegerField(null=False, unique=True)
 
@@ -91,10 +80,8 @@ class Course(models.Model):
     def __str__(self):
         return self.name
 
-
 class Announcement(models.Model):
-    course_code = models.ForeignKey(
-        Course, on_delete=models.CASCADE, null=False)
+    course_code = models.ForeignKey(Course, on_delete=models.CASCADE, null=False)
     datetime = models.DateTimeField(auto_now_add=True, null=False)
     description = FroalaField()
 
@@ -108,10 +95,8 @@ class Announcement(models.Model):
     def post_date(self):
         return self.datetime.strftime("%d-%b-%y, %I:%M %p")
 
-
 class Assignment(models.Model):
-    course_code = models.ForeignKey(
-        Course, on_delete=models.CASCADE, null=False)
+    course_code = models.ForeignKey(Course, on_delete=models.CASCADE, null=False)
     title = models.CharField(max_length=255, null=False)
     description = models.TextField(null=False)
     datetime = models.DateTimeField(auto_now_add=True, null=False)
@@ -136,15 +121,12 @@ class Assignment(models.Model):
     def due_date(self):
         return self.deadline.strftime("%d-%b-%y, %I:%M %p")
 
-
 class Submission(models.Model):
-    assignment = models.ForeignKey(
-        Assignment, on_delete=models.CASCADE, null=False)
+    assignment = models.ForeignKey(Assignment, on_delete=models.CASCADE, null=False)
     student = models.ForeignKey(Student, on_delete=models.CASCADE, null=False)
     file = models.FileField(upload_to='submissions/', null=True,)
     datetime = models.DateTimeField(auto_now_add=True, null=False)
-    marks = models.DecimalField(
-        max_digits=6, decimal_places=2, null=True, blank=True)
+    marks = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
     status = models.CharField(max_length=100, null=True, blank=True)
 
     def file_name(self):
@@ -183,10 +165,8 @@ class Submission(models.Model):
         verbose_name_plural = "Submissions"
         ordering = ['datetime']
 
-
 class Material(models.Model):
-    course_code = models.ForeignKey(
-        Course, on_delete=models.CASCADE, null=False)
+    course_code = models.ForeignKey(Course, on_delete=models.CASCADE, null=False)
     description = models.TextField(max_length=2000, null=False)
     datetime = models.DateTimeField(auto_now_add=True, null=False)
     file = models.FileField(upload_to='materials/', null=True, blank=True)

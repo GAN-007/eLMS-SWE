@@ -1,23 +1,39 @@
 import datetime
 from django.shortcuts import redirect, render
 from django.contrib import messages
-from .models import Student, Course, Announcement, Assignment, Submission, Material, Faculty, Department
+from django.contrib.auth.models import AbstractUser, Group, Permission
 from django.template.defaulttags import register
-from django.db.models import Count, Q
-from django.http import HttpResponseRedirect
-from .forms import AnnouncementForm, AssignmentForm, MaterialForm
-from django import forms
+from django.db import models
+from django.db.models import Count
+from .forms import AnnouncementForm, AssignmentForm, MaterialForm, LoginForm, SignUpForm
 from django.core import validators
+from django.http import HttpResponseRedirect
+from .models import Student, Course, Faculty, Department
 
+class User(AbstractUser):
+    groups = models.ManyToManyField(
+        Group,
+        verbose_name='groups',
+        blank=True,
+        help_text='The groups this user belongs to. A user will get all permissions granted to each of their groups.',
+        related_name='main_user_groups'
+    )
+    
+    user_permissions = models.ManyToManyField(
+        Permission,
+        verbose_name='user permissions',
+        blank=True,
+        help_text='Specific permissions for this user.',
+        related_name='main_user_user_permissions'
+    )
 
-from django import forms
+class StudentView(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    student_id = models.CharField(max_length=20, unique=True)
 
-
-class LoginForm(forms.Form):
-    id = forms.CharField(label='ID', max_length=10, validators=[
-                         validators.RegexValidator(r'^\d+$', 'Please enter a valid number.')])
-    password = forms.CharField(widget=forms.PasswordInput)
-
+class FacultyView(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    faculty_id = models.CharField(max_length=20, unique=True)
 
 def is_student_authorised(request, code):
     course = Course.objects.get(code=code)
@@ -26,15 +42,26 @@ def is_student_authorised(request, code):
     else:
         return False
 
-
 def is_faculty_authorised(request, code):
     if request.session.get('faculty_id') and code in Course.objects.filter(faculty_id=request.session['faculty_id']).values_list('code', flat=True):
         return True
     else:
         return False
 
+def signup_view(request):
+    if request.method == 'POST':
+        form = SignUpForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect('success')
+    else:
+        form = SignUpForm()
+    
+    context = {
+        'form': form,
+    }
+    return render(request, 'signup.html', context)
 
-# Custom Login page for both student and faculty
 def std_login(request):
     error_messages = []
 
@@ -66,20 +93,14 @@ def std_login(request):
     context = {'form': form, 'error_messages': error_messages}
     return render(request, 'login_page.html', context)
 
-# Clears the session on logout
-
-
 def std_logout(request):
     request.session.flush()
     return redirect('std_login')
 
-
-# Display all courses (student view)
 def myCourses(request):
     try:
         if request.session.get('student_id'):
-            student = Student.objects.get(
-                student_id=request.session['student_id'])
+            student = Student.objects.get(student_id=request.session['student_id'])
             courses = student.course.all()
             faculty = student.course.all().values_list('faculty_id', flat=True)
 
@@ -89,14 +110,13 @@ def myCourses(request):
                 'faculty': faculty
             }
 
-            return render(request, 'main/myCourses.html', context)
+            return render(request, 'my_courses.html', context)
         else:
             return redirect('std_login')
-    except:
-        return render(request, 'error.html')
+    except Student.DoesNotExist:
+        return redirect('std_login')
 
 
-# Display all courses (faculty view)
 def facultyCourses(request):
     try:
         if request.session['faculty_id']:
@@ -104,7 +124,6 @@ def facultyCourses(request):
                 faculty_id=request.session['faculty_id'])
             courses = Course.objects.filter(
                 faculty_id=request.session['faculty_id'])
-            # Student count of each course to show on the faculty page
             studentCount = Course.objects.all().annotate(student_count=Count('students'))
 
             studentCountDict = {}
@@ -126,8 +145,26 @@ def facultyCourses(request):
 
         else:
             return redirect('std_login')
-    except:
+   
 
+    except:
+        return render(request, 'error.html')
+def courseDetails(request, code):
+    if is_student_authorised(request, code) or is_faculty_authorised(request, code):
+        course = Course.objects.get(code=code)
+        announcements = Announcement.objects.filter(course=course).order_by('-created_at')
+        assignments = Assignment.objects.filter(course=course).order_by('-created_at')
+        materials = Material.objects.filter(course=course).order_by('-created_at')
+
+        context = {
+            'course': course,
+            'announcements': announcements,
+            'assignments': assignments,
+            'materials': materials
+        }
+
+        return render(request, 'main/courseDetails.html', context)
+    else:
         return redirect('std_login')
 
 
@@ -223,14 +260,14 @@ def addAnnouncement(request, code):
             form.instance.course_code = Course.objects.get(code=code)
             if form.is_valid():
                 form.save()
-                messages.success(
-                    request, 'Announcement added successfully.')
+                messages.success(request, 'Announcement added successfully.')
                 return redirect('/faculty/' + str(code))
         else:
             form = AnnouncementForm()
         return render(request, 'main/announcement.html', {'course': Course.objects.get(code=code), 'faculty': Faculty.objects.get(faculty_id=request.session['faculty_id']), 'form': form})
     else:
         return redirect('std_login')
+
 
 
 def deleteAnnouncement(request, code, id):
@@ -291,6 +328,7 @@ def addAssignment(request, code):
         return render(request, 'main/assignment.html', {'course': Course.objects.get(code=code), 'faculty': Faculty.objects.get(faculty_id=request.session['faculty_id']), 'form': form})
     else:
         return redirect('std_login')
+
 
 
 def assignmentPage(request, code, id):
